@@ -1,0 +1,18 @@
+java_package: openjdk-17-jre-headless
+
+spark_version: "3.5.1"
+spark_hadoop_profile: "hadoop3"
+spark_tgz: "spark-{{ spark_version }}-bin-{{ spark_hadoop_profile }}.tgz"
+spark_url: "https://archive.apache.org/dist/spark/spark-{{ spark_version }}/{{ spark_tgz }}"
+
+spark_install_root: "/opt"
+spark_install_dir: "/opt/spark"
+spark_extracted_dir: "/opt/spark-{{ spark_version }}-bin-{{ spark_hadoop_profile }}"
+
+spark_user: "spark"
+spark_group: "spark"
+
+spark_master_ip: "34.78.110.55"
+spark_master_port: 7077
+spark_master_webui_port: 8080
+spark_worker_webui_port: 8081

@@ -1,0 +1,124 @@
+- name: Install and configure Spark
+  hosts: spark_cluster
+  become: true
+  vars_files:
+    - ../group_vars/spark_cluster.yml
+  tasks:
+    - name: Create spark group
+      group:
+        name: "{{ spark_group }}"
+        state: present
+
+    - name: Create spark user
+      user:
+        name: "{{ spark_user }}"
+        group: "{{ spark_group }}"
+        system: yes
+        create_home: no
+        shell: /usr/sbin/nologin
+        state: present
+
+    - name: Download Spark archive
+      get_url:
+        url: "{{ spark_url }}"
+        dest: "/tmp/{{ spark_tgz }}"
+        mode: "0644"
+
+    - name: Extract Spark
+      unarchive:
+        src: "/tmp/{{ spark_tgz }}"
+        dest: "{{ spark_install_root }}"
+        remote_src: yes
+        creates: "{{ spark_extracted_dir }}"
+
+    - name: Symlink /opt/spark -> extracted dir
+      file:
+        src: "{{ spark_extracted_dir }}"
+        dest: "{{ spark_install_dir }}"
+        state: link
+        force: yes
+
+    - name: Ensure ownership of Spark directory
+      file:
+        path: "{{ spark_extracted_dir }}"
+        state: directory
+        recurse: yes
+        owner: "{{ spark_user }}"
+        group: "{{ spark_group }}"
+
+    - name: Create spark-env.sh
+      copy:
+        dest: "{{ spark_install_dir }}/conf/spark-env.sh"
+        owner: "{{ spark_user }}"
+        group: "{{ spark_group }}"
+        mode: "0644"
+        content: |
+          #!/usr/bin/env bash
+          export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+          export SPARK_HOME={{ spark_install_dir }}
+          export SPARK_MASTER_HOST={{ spark_master_ip }}
+          export SPARK_MASTER_PORT={{ spark_master_port }}
+          export SPARK_MASTER_WEBUI_PORT={{ spark_master_webui_port }}
+          export SPARK_WORKER_WEBUI_PORT={{ spark_worker_webui_port }}
+
+    - name: Create systemd unit for spark-master (master only)
+      copy:
+        dest: /etc/systemd/system/spark-master.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Apache Spark Master
+          After=network.target
+
+          [Service]
+          Type=forking
+          User={{ spark_user }}
+          Group={{ spark_group }}
+          Environment=SPARK_HOME={{ spark_install_dir }}
+          ExecStart={{ spark_install_dir }}/sbin/start-master.sh
+          ExecStop={{ spark_install_dir }}/sbin/stop-master.sh
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+      when: inventory_hostname in groups['spark_master']
+
+    - name: Create systemd unit for spark-worker (workers only)
+      copy:
+        dest: /etc/systemd/system/spark-worker.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Apache Spark Worker
+          After=network.target
+
+          [Service]
+          Type=forking
+          User={{ spark_user }}
+          Group={{ spark_group }}
+          Environment=SPARK_HOME={{ spark_install_dir }}
+          ExecStart={{ spark_install_dir }}/sbin/start-worker.sh spark://{{ spark_master_ip }}:{{ spark_master_port }}
+          ExecStop={{ spark_install_dir }}/sbin/stop-worker.sh
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+      when: inventory_hostname in groups['spark_workers']
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable + start spark-master (master only)
+      systemd:
+        name: spark-master
+        enabled: yes
+        state: started
+      when: inventory_hostname in groups['spark_master']
+
+    - name: Enable + start spark-worker (workers only)
+      systemd:
+        name: spark-worker
+        enabled: yes
+        state: started
+      when: inventory_hostname in groups['spark_workers']

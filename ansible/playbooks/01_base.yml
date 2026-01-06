@@ -1,0 +1,20 @@
+- name: Base packages + Java
+  hosts: spark_cluster
+  become: true
+  vars_files:
+    - ../group_vars/spark_cluster.yml
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install base packages
+      apt:
+        name:
+          - curl
+          - ca-certificates
+          - tar
+          - rsync
+          - "{{ java_package }}"
+        state: present

@@ -1,0 +1,19 @@
+[spark_master]
+34.78.110.55
+
+[spark_workers]
+34.38.204.95
+34.79.213.190
+
+[spark_edge]
+34.76.106.240
+
+[spark_cluster:children]
+spark_master
+spark_workers
+spark_edge
+
+[spark_cluster:vars]
+ansible_user=pc
+ansible_ssh_private_key_file=/home/simo/.ssh/google_compute_engine
+ansible_ssh_common_args=-o StrictHostKeyChecking=no
